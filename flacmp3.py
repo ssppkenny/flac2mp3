@@ -71,7 +71,7 @@ with os.scandir('.') as entries:
             dst = f"{tracks[m.group(1)].title}.flac"
             dst_mp3= f"{tracks[m.group(1)].title}.mp3"
             os.rename(entry.name, dst)
-            os.system(f'ffmpeg -i "{dst}" -ab 320 "{dst_mp3}"')
+            os.system(f'ffmpeg -i "{dst}" -ab 320k "{dst_mp3}"')
 
             audiofile = eyed3.load(dst_mp3)
             audiofile.tag.artist = header.performer
