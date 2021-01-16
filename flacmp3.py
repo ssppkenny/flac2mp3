@@ -25,7 +25,11 @@ def str2bool(v):
 class Flac2Mp3Converter:
     def __init__(self):
         parser = argparse.ArgumentParser(description='convert file')
-        parser.add_argument('--conv', metavar='convert', type=str2bool, help='convert to wav')
+        parser.add_argument(
+            '--conv',
+            metavar='convert',
+            type=str2bool,
+            help='convert to wav')
         args = parser.parse_args()
         self.__convert = args.conv
         self.__cuefile, self.__flacfile = self.__detect_files()
@@ -50,7 +54,6 @@ class Flac2Mp3Converter:
                 existing_files.append(entry.name)
             return existing_files
         return []
-
 
     def __parse(self, cuefile):
         header = dict()
@@ -80,11 +83,9 @@ class Flac2Mp3Converter:
         os.remove(cuefile)
         return CueSheet(header['PERFORMER'], header['TITLE']), tracks
 
-
     def __split_tracks(self):
         cmd = f'cuebreakpoints "{self.__cuefile}" | sed s/$/0/ | shnsplit -O always -o flac "{self.__flacfile}"'
         os.system(cmd)
-
 
     def __detect_files(self):
         # split tracks
@@ -100,7 +101,6 @@ class Flac2Mp3Converter:
                     flacfile = entry.name
 
         return cuefile, flacfile
-
 
     def __convert_with_wav(self):
         convert_cmd1 = f'ffmpeg -i "{self.__flacfile}" "{self.__flacfile}.wav"'
@@ -119,7 +119,6 @@ class Flac2Mp3Converter:
         audiofile.tag.track_num = int(m.group(1))
         audiofile.tag.save()
 
-
     def __convert_cuefile(self):
         coding2 = "utf-8"
         coding1 = "cp1251"
@@ -130,14 +129,12 @@ class Flac2Mp3Converter:
         os.system(conv_cmd)
         return temp_name
 
-
     def __cleanup(self):
         with os.scandir(".") as entries:
             for entry in entries:
                 if entry.name not in self.__existing_files:
                     print(f"deleting {entry.name}")
                     os.remove(entry.name)
-
 
     def __rename_files(self):
         header, tracks = self.__header, self.__tracks
@@ -153,8 +150,6 @@ class Flac2Mp3Converter:
                     os.remove(dst)
 
 
-
 if __name__ == '__main__':
     converter = Flac2Mp3Converter()
     converter.convert()
-
