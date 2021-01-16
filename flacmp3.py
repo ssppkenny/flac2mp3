@@ -1,8 +1,27 @@
 #!/usr/local/bin/python3
 
-import re, os, subprocess
+import re, os, subprocess, argparse
 from collections import namedtuple
 import eyed3
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+parser = argparse.ArgumentParser(description='convert file')
+
+parser.add_argument('--conv', metavar='convert', type=str2bool, help='convert to wav')
+
+args = parser.parse_args()
+print(args)
+
 
 CueTrack = namedtuple("CueTrack", ("number", "title"))
 CueSheet = namedtuple("CueSheet", ("performer", "title"))
@@ -33,7 +52,9 @@ def parse(cuefile):
                 current_track = None
 
 
+    os.remove(cuefile)
     return CueSheet(header['PERFORMER'], header['TITLE']), tracks
+
 
 ## split tracks
 with os.scandir(".") as entries:
@@ -49,7 +70,14 @@ with os.scandir(".") as entries:
 
 cmd = f'cuebreakpoints "{cuefile}" | sed s/$/0/ | shnsplit -O always -o flac "{flacfile}"'
 
-print(cmd)
+if args.conv:
+    convert_cmd1 = f'ffmpeg -i "{flacfile}" "{flacfile}.wav"'
+    convert_cmd2 = f'ffmpeg -y -i "{flacfile}.wav" "{flacfile}"'
+
+    os.system(convert_cmd1)
+    os.system(convert_cmd2)
+    os.remove(f'{flacfile}.wav')
+
 
 os.system(cmd)
 
@@ -57,12 +85,13 @@ os.system(cmd)
 coding2 = "utf-8"
 coding1 = "cp1251"
 
-conv_cmd = f'iconv -f CP1251 -t UTF-8 "{cuefile}" > test.cue'
+conv_cmd = f'iconv -f CP1251 -t UTF-8 "{cuefile}" > _test.cue'
 print(conv_cmd)
 os.system(conv_cmd)
 
 
-header, tracks = parse("test.cue")
+header, tracks = parse("_test.cue")
+
 
 with os.scandir('.') as entries:
     for entry in entries:
