@@ -104,6 +104,16 @@ def convert_with_wav(flacfile):
         os.system(convert_cmd2)
         os.remove(f'{flacfile}.wav')
 
+def update_audiofile(filename, header, tracks, m):
+    audiofile = eyed3.load(filename)
+    audiofile.tag.artist = header.performer
+    audiofile.tag.album = header.title
+    audiofile.tag.album_artist = header.performer
+    audiofile.tag.title = tracks[m.group(1)].title
+    audiofile.tag.track_num = int(m.group(1))
+    audiofile.tag.save()
+
+
 
 def convert_cuefile():
     coding2 = "utf-8"
@@ -120,7 +130,7 @@ def cleanup(existing_files):
     with os.scandir(".") as entries:
         for entry in entries:
             if entry.name not in existing_files:
-                print(f"deleting ${entry.name}")
+                print(f"deleting {entry.name}")
                 os.remove(entry.name)
 
 
@@ -134,14 +144,7 @@ def rename_files():
                 os.rename(entry.name, dst)
                 os.system(f'ffmpeg -i "{dst}" -ab 320k "{dst_mp3}"')
 
-                audiofile = eyed3.load(dst_mp3)
-                audiofile.tag.artist = header.performer
-                audiofile.tag.album = header.title
-                audiofile.tag.album_artist = header.performer
-                audiofile.tag.title = tracks[m.group(1)].title
-                audiofile.tag.track_num = int(m.group(1))
-
-                audiofile.tag.save()
+                update_audiofile(dst_mp3, header, tracks, m)
 
                 os.remove(dst)
 
