@@ -32,17 +32,69 @@ class Flac2Mp3Converter:
             help='convert to wav')
         args = parser.parse_args()
         self.__convert = args.conv
-        self.__cuefile, self.__flacfile = self.__detect_files()
         self.__existing_files = self.__protocol_files()
+
+
+    def __split_cuefile(self, cuefile):
+        with open(cuefile, "r") as f:
+            lines = f.readlines()
+            header_lines = []
+            file_lines = dict()
+            file_counter = 0
+            for line in lines:
+                if not re.match(r'^FILE\s+\"(.*)\".*', line) and file_counter == 0:
+                    header_lines.append(line)
+                elif re.match(r'^FILE\s+\"(.*)\".*', line):
+                    file_counter += 1
+                    file_lines[file_counter] = []
+                    file_lines[file_counter].append(line)
+                else:
+                    file_lines[file_counter].append(line)
+
+            new_cue_files = []
+            for k, v in file_lines.items():
+                temp_name = next(tempfile._get_candidate_names())
+                new_cue_file = f"{temp_name}.cue"
+                new_cue_files.append(new_cue_file)
+                with open(new_cue_file, "w") as f:
+                    for hl in header_lines:
+                        f.write(hl)
+                    for bl in v:
+                        f.write(bl)
+            
+            return new_cue_files
+
+
+
+
+    def __detect_cuefile(self):
+        # split tracks
+        with os.scandir(".") as entries:
+            cuefile = None
+            flacfile = None
+            for entry in entries:
+                m = re.match(r'.+\.cue', entry.name)
+                if m:
+                    cuefile = entry.name
+               
+        return cuefile
+
 
     def convert(self):
         try:
-            if self.__convert:
-                self.__convert_with_wav()
-            self.__split_tracks()
+            self.__cuefile = self.__detect_cuefile()
             temp_cue_file = self.__convert_cuefile()
-            self.__header, self.__tracks = self.__parse(temp_cue_file)
-            self.__rename_files()
+            new_cue_files = self.__split_cuefile(temp_cue_file)
+            file_counter = 1
+            for new_cue_file in new_cue_files:
+                self.__header, self.__tracks, flacfile = self.__parse(new_cue_file)
+                if self.__convert:
+                    self.__convert_with_wav(flacfile)
+                self.__split_tracks(new_cue_file, flacfile, file_counter)
+                file_counter = self.__rename_files(file_counter)
+            os.remove(temp_cue_file)
+            for new_cue_file in new_cue_files:
+                os.remove(new_cue_file)
         except Exception as e:
             print(e)
             self.__cleanup()
@@ -56,13 +108,18 @@ class Flac2Mp3Converter:
         return []
 
     def __parse(self, cuefile):
-        header = dict()
-        tracks = dict()
+        header = {}
+        tracks = {}
 
         with open(cuefile, "r") as f:
             lines = f.readlines()
             current_track = None
+            current_file = None
             for line in lines:
+                m = re.match(r'^FILE\s+\"+(.+)\"+', line)
+                if m:
+                    current_file = m.group(1)
+                    
                 m = re.match(r'^TITLE\s+\"+(.+)\"+', line)
                 if m:
                     header["TITLE"] = m.group(1)
@@ -79,36 +136,23 @@ class Flac2Mp3Converter:
                     track = CueTrack(current_track, m.group(1))
                     tracks[current_track] = track
                     current_track = None
+            ret_val = CueSheet(header['PERFORMER'], header['TITLE']), tracks, current_file
+            print(ret_val)
+            return ret_val
 
-        os.remove(cuefile)
-        return CueSheet(header['PERFORMER'], header['TITLE']), tracks
-
-    def __split_tracks(self):
-        cmd = f'cuebreakpoints "{self.__cuefile}" | sed s/$/0/ | shnsplit -O always -o flac "{self.__flacfile}"'
+    def __split_tracks(self, temp_cue_file, flacfile, file_counter):
+        cmd = f'cuebreakpoints "{temp_cue_file}" | sed s/$/0/ | shnsplit -c {file_counter} -O always -o flac "{flacfile}"'
+        print(cmd)
         os.system(cmd)
 
-    def __detect_files(self):
-        # split tracks
-        with os.scandir(".") as entries:
-            cuefile = None
-            flacfile = None
-            for entry in entries:
-                m = re.match(r'.+\.cue', entry.name)
-                if m:
-                    cuefile = entry.name
-                m = re.match(r'.+\.flac', entry.name)
-                if m:
-                    flacfile = entry.name
 
-        return cuefile, flacfile
-
-    def __convert_with_wav(self):
-        convert_cmd1 = f'ffmpeg -i "{self.__flacfile}" "{self.__flacfile}.wav"'
-        convert_cmd2 = f'ffmpeg -y -i "{self.__flacfile}.wav" "{self.__flacfile}"'
+    def __convert_with_wav(self, flacfile):
+        convert_cmd1 = f'ffmpeg -i "{flacfile}" "{flacfile}.wav"'
+        convert_cmd2 = f'ffmpeg -y -i "{flacfile}.wav" "{flacfile}"'
 
         os.system(convert_cmd1)
         os.system(convert_cmd2)
-        os.remove(f'{self.__flacfile}.wav')
+        os.remove(f'{flacfile}.wav')
 
     def __update_audiofile(self, filename, header, tracks, m):
         audiofile = eyed3.load(filename)
@@ -125,9 +169,10 @@ class Flac2Mp3Converter:
 
         temp_name = next(tempfile._get_candidate_names())
 
-        conv_cmd = f'iconv -f CP1251 -t UTF-8 "{self.__cuefile}" > {temp_name}'
+        conv_cmd = f'iconv -f CP1251 -t UTF-8 "{self.__cuefile}" > {temp_name}.cue'
         os.system(conv_cmd)
-        return temp_name
+
+        return f"{temp_name}.cue"
 
     def __cleanup(self):
         with os.scandir(".") as entries:
@@ -136,7 +181,7 @@ class Flac2Mp3Converter:
                     print(f"deleting {entry.name}")
                     os.remove(entry.name)
 
-    def __rename_files(self):
+    def __rename_files(self, counter):
         header, tracks = self.__header, self.__tracks
         with os.scandir('.') as entries:
             for entry in entries:
@@ -148,6 +193,8 @@ class Flac2Mp3Converter:
                     os.system(f'ffmpeg -i "{dst}" -ab 320k "{dst_mp3}"')
                     self.__update_audiofile(dst_mp3, header, tracks, m)
                     os.remove(dst)
+                    counter += 1
+        return counter
 
 
 if __name__ == '__main__':
