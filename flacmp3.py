@@ -82,14 +82,14 @@ class Flac2Mp3Converter:
             self.__cuefile = self.__detect_cuefile()
             temp_cue_file = self.__convert_cuefile()
             new_cue_files = self.__split_cuefile(temp_cue_file)
-            file_counter = 1
             for new_cue_file in new_cue_files:
                 self.__header, self.__tracks, flacfile = self.__parse(
                     new_cue_file)
                 if self.__convert:
                     self.__convert_with_wav(flacfile)
+                file_counter = min([int(x) for x in self.__tracks])
                 self.__split_tracks(new_cue_file, flacfile, file_counter)
-                file_counter = self.__rename_files(file_counter)
+                self.__rename_files()
             os.remove(temp_cue_file)
             for new_cue_file in new_cue_files:
                 os.remove(new_cue_file)
@@ -179,7 +179,7 @@ class Flac2Mp3Converter:
                     print(f"deleting {entry.name}")
                     os.remove(entry.name)
 
-    def __rename_files(self, counter):
+    def __rename_files(self):
         header, tracks = self.__header, self.__tracks
         with os.scandir('.') as entries:
             for entry in entries:
@@ -191,8 +191,6 @@ class Flac2Mp3Converter:
                     os.system(f'ffmpeg -i "{dst}" -ab 320k "{dst_mp3}"')
                     self.__update_audiofile(dst_mp3, header, tracks, m)
                     os.remove(dst)
-                    counter += 1
-        return counter
 
 
 if __name__ == '__main__':
