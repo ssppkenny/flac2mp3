@@ -141,7 +141,8 @@ class Flac2Mp3Converter:
             return ret_val
 
     def _split_tracks(self, temp_cue_file, flacfile, file_counter):
-        cmd = f'cuebreakpoints "{temp_cue_file}" | sed s/$/0/ | shnsplit -c {file_counter} -O always -o flac "{flacfile}"'
+        format = "flac" if flacfile.endswith("flac") else "ape"
+        cmd = f'cuebreakpoints "{temp_cue_file}" | sed s/$/0/ | shnsplit -c {file_counter} -O always -o {format} "{flacfile}"'
         print(cmd)
         os.system(cmd)
 
